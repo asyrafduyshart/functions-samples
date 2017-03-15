@@ -29,17 +29,16 @@ const app = express();
 const validateFirebaseIdToken = (req, res, next) => {
   console.log('Check if request is authorized with Firebase ID token');
 
-  if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
-    console.error('No Firebase ID token was passed as a Bearer token in the Authorization header.',
-        'Make sure you authorize your request by providing the following HTTP header:',
-        'Authorization: Bearer <Firebase ID Token>');
+  if (!req.query.token) {
+    console.error('Token is not requested');
     res.status(403).send('Unauthorized');
     return;
   }
-  const idToken = req.headers.authorization.split('Bearer ')[1];
+  const idToken = req.query.token;
   admin.auth().verifyIdToken(idToken).then(decodedIdToken => {
     console.log('ID Token correctly decoded', decodedIdToken);
     req.user = decodedIdToken;
+    req.email
     next();
   }).catch(error => {
     console.error('Error while verifying Firebase ID token:', error);
@@ -49,11 +48,24 @@ const validateFirebaseIdToken = (req, res, next) => {
 
 app.use(cors);
 app.use(validateFirebaseIdToken);
-app.get('*', (req, res) => {
-  res.send(`Hello ${req.user.name}`);
+app.get('/auth', (req, res) => {
+  console.log(`Requested Token ${req.query.token}`)
+  const objectSuccess = {
+    status : 200,
+    message : 'success',
+    data : {
+        fb_uuid : req.user_id,
+        email : req.user.email,
+        name : req.user.name,
+        email_verified : req.user.email_verified,
+        sign_in_method : req.user.firebase.sign_in_provider
+    }
+  }
+  res.contentType('application/json')
+  res.send(JSON.stringify(objectSuccess));
 });
 
 // This HTTPS endpoint can only be accessed by your Firebase Users.
 // Requests need to be authorized by providing an `Authorization` HTTP header
 // with value `Bearer <Firebase ID Token>`.
-exports.authorizedHello = functions.https.onRequest(app);
+exports.authorization = functions.https.onRequest(app);
